@@ -18,14 +18,41 @@ st.set_page_config(layout="wide", page_title="Growth Intelligence", page_icon="�
 
 st.markdown("""
 <style>
-.stApp { background: linear-gradient(135deg, #0E1117, #1A1F2B); color:white; }
+
+.stApp {
+    background: radial-gradient(circle at top, #0A0F1C, #000000);
+    color: white;
+}
+
+[data-testid="stSidebar"] {
+    background: rgba(0,0,0,0.85);
+    backdrop-filter: blur(10px);
+}
+
 [data-testid="stMetric"] {
     background: rgba(255,255,255,0.05);
-    backdrop-filter: blur(10px);
     border-radius: 15px;
     padding: 15px;
     border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 0 15px rgba(0,255,255,0.15);
 }
+
+.stTabs [data-baseweb="tab"] {
+    color: #00F5FF;
+    font-weight: 600;
+}
+
+.stButton button {
+    background: linear-gradient(135deg, #00F5FF, #7A00FF);
+    color: white;
+    border-radius: 10px;
+    border: none;
+}
+
+.js-plotly-plot {
+    background-color: #000000 !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -86,13 +113,13 @@ def gpi(df):
 def insights(df):
     out = []
     if (df["GPI"]>70).sum()>0:
-        out.append(f"🚀 {(df['GPI']>70).sum()} high potential restaurants detected")
+        out.append(f"🚀 {(df['GPI']>70).sum()} high potential restaurants")
     if (df["GPI"]<40).sum()>0:
-        out.append(f"🛑 {(df['GPI']<40).sum()} restaurants at risk")
+        out.append(f"🛑 {(df['GPI']<40).sum()} at risk")
     if df["AggregatorDep"].mean()>0.6:
-        out.append("⚠️ High aggregator dependency")
+        out.append("⚠️ Aggregator dependency high")
     if df["NetMargin"].mean()<0.1:
-        out.append("📉 Low profitability overall")
+        out.append("📉 Low profitability")
     return out
 
 def forecast(df):
@@ -101,7 +128,7 @@ def forecast(df):
 
 def app():
     if not os.path.exists(DATA_FILE):
-        st.error("CSV file not found")
+        st.error("CSV file missing")
         return
 
     df = load()
@@ -110,28 +137,30 @@ def app():
     df = gpi(df)
     df = forecast(df)
 
-    st.title("🚀 Restaurant Growth Intelligence System")
-    st.caption("AI • Clustering • Forecasting • Strategy")
+    st.title("🚀 Growth Intelligence Dashboard")
+    st.caption("AI • ML • Strategy • Forecasting")
 
-    sub = st.sidebar.multiselect("Subregion", sorted(df["Subregion"].unique()), sorted(df["Subregion"].unique()))
-    cui = st.sidebar.multiselect("Cuisine", sorted(df["CuisineType"].unique()), sorted(df["CuisineType"].unique()))
+    sub = st.sidebar.multiselect("Subregion", df["Subregion"].unique(), df["Subregion"].unique())
+    cui = st.sidebar.multiselect("Cuisine", df["CuisineType"].unique(), df["CuisineType"].unique())
 
     f = df[df["Subregion"].isin(sub) & df["CuisineType"].isin(cui)]
 
     c1,c2,c3,c4 = st.columns(4)
     c1.metric("Restaurants", len(f))
     c2.metric("Avg GPI", f"{f['GPI'].mean():.1f}")
-    c3.metric("Avg Margin", f"{f['NetMargin'].mean():.2%}")
-    c4.metric("High Potential", (f["GPI"]>70).sum())
+    c3.metric("Margin", f"{f['NetMargin'].mean():.2%}")
+    c4.metric("Top Performers", (f["GPI"]>70).sum())
 
     st.markdown("### 🤖 AI Insights")
     for i in insights(f):
-        st.info(i)
+        st.success(i)
 
-    tab1,tab2,tab3,tab4 = st.tabs(["📍 Clusters","📊 GPI","📈 Forecast","📋 Data"])
+    tab1,tab2,tab3,tab4 = st.tabs(["Clusters","GPI","Forecast","Data"])
 
     with tab1:
-        st.plotly_chart(px.scatter(f,x="PC1",y="PC2",color="ClusterLabel",size="GPI",hover_name="RestaurantName",template="plotly_dark"),use_container_width=True)
+        fig = px.scatter(f,x="PC1",y="PC2",color="ClusterLabel",size="GPI",hover_name="RestaurantName",template="plotly_dark")
+        fig.update_traces(marker=dict(line=dict(width=1,color="cyan")))
+        st.plotly_chart(fig,use_container_width=True)
 
     with tab2:
         st.plotly_chart(px.histogram(f,x="GPI",color="ClusterLabel",template="plotly_dark"),use_container_width=True)
@@ -142,7 +171,7 @@ def app():
 
     with tab4:
         st.dataframe(f.sort_values("GPI",ascending=False),use_container_width=True)
-        st.download_button("Download CSV", f.to_csv(index=False), "output.csv")
+        st.download_button("Download", f.to_csv(index=False), "data.csv")
 
 if __name__ == "__main__":
     app()
