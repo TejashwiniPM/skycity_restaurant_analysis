@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import plotly.express as px
+import plotly.graph_objects as go
 
 from sklearn.preprocessing import StandardScaler, LabelEncoder, MinMaxScaler
 from sklearn.decomposition import PCA
@@ -14,51 +15,39 @@ from sklearn.metrics import silhouette_score
 
 DATA_FILE = "SkyCity_Auckland_Restaurants___Bars.csv"
 
-st.set_page_config(layout="wide", page_title="Growth Intelligence", page_icon="🚀")
+st.set_page_config(layout="wide", page_title="Growth Intelligence AI", page_icon="🚀")
 
 st.markdown("""
 <style>
-
 html, body, .stApp {
-    background: radial-gradient(circle at top, #0f172a, #000000);
-    color: #ffffff;
+    background: radial-gradient(circle at top, #020617, #000000);
+    color: #E5E7EB;
     font-family: 'Segoe UI';
 }
-
 .block-container {
     padding-top: 1rem;
 }
-
 [data-testid="stSidebar"] {
     background: linear-gradient(180deg, #020617, #000000);
 }
-
 div[data-baseweb="select"] > div {
     background: rgba(255,255,255,0.05);
-    backdrop-filter: blur(10px);
+    backdrop-filter: blur(12px);
     border-radius: 12px;
     border: 1px solid rgba(255,255,255,0.1);
 }
-
 div[data-baseweb="tag"] {
     background: linear-gradient(135deg,#6366f1,#06b6d4);
     color: white;
-    border-radius: 8px;
 }
-
 [data-testid="stMetric"] {
     background: rgba(255,255,255,0.05);
-    backdrop-filter: blur(12px);
+    backdrop-filter: blur(14px);
     border-radius: 16px;
     padding: 15px;
     border: 1px solid rgba(255,255,255,0.1);
-    box-shadow: 0px 0px 20px rgba(99,102,241,0.2);
+    box-shadow: 0px 0px 25px rgba(99,102,241,0.2);
 }
-
-.js-plotly-plot {
-    border-radius: 12px;
-}
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -121,7 +110,7 @@ df,X = prep(df)
 df = cluster(df,X)
 df = gpi(df)
 
-st.title("🚀 Restaurant Growth Intelligence System")
+st.title("🚀 AI Growth Intelligence System")
 
 sub = st.sidebar.multiselect("Subregion", df["Subregion"].unique(), df["Subregion"].unique())
 cui = st.sidebar.multiselect("Cuisine", df["CuisineType"].unique(), df["CuisineType"].unique())
@@ -131,15 +120,19 @@ f = df[df["Subregion"].isin(sub) & df["CuisineType"].isin(cui)]
 c1,c2,c3,c4 = st.columns(4)
 c1.metric("Restaurants", len(f))
 c2.metric("Avg GPI", f"{f['GPI'].mean():.1f}")
-c3.metric("Margin", f"{f['NetMargin'].mean():.2%}")
-c4.metric("Top", (f["GPI"]>70).sum())
+c3.metric("Avg Margin", f"{f['NetMargin'].mean():.2%}")
+c4.metric("Top Performers", (f["GPI"]>70).sum())
 
-tab1, tab2, tab3 = st.tabs(["Clusters","GPI Insights","Performance"])
+trend = f.sort_values("GPI")
+fig_trend = px.line(trend, y="GPI", template="plotly_dark")
+fig_trend.update_layout(paper_bgcolor="rgba(0,0,0,0)")
+st.plotly_chart(fig_trend, use_container_width=True)
+
+tab1, tab2, tab3, tab4 = st.tabs(["Clusters","Insights","Performance","AI Panel"])
 
 with tab1:
     fig = px.scatter(f,x="PC1",y="PC2",color="ClusterLabel",size="GPI",hover_name="RestaurantName",template="plotly_dark")
-    fig.update_traces(marker=dict(line=dict(width=1,color='white')))
-    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)")
+    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)")
     st.plotly_chart(fig,use_container_width=True)
 
 with tab2:
@@ -167,3 +160,16 @@ with tab3:
     fig6 = px.pie(f,names="Recommendation",template="plotly_dark")
     fig6.update_layout(paper_bgcolor="rgba(0,0,0,0)")
     st.plotly_chart(fig6,use_container_width=True)
+
+with tab4:
+    st.subheader("AI Insights")
+    high = f[f["GPI"]>70].shape[0]
+    low = f[f["GPI"]<40].shape[0]
+    msg = f"""
+    High potential restaurants: {high}
+    Low performing restaurants: {low}
+    Average margin: {f['NetMargin'].mean():.2%}
+    Key insight: Focus on high GPI clusters and reduce aggregator dependency
+    """
+    st.markdown(msg)
+
