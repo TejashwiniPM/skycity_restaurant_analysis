@@ -19,67 +19,44 @@ st.set_page_config(layout="wide", page_title="Growth Intelligence", page_icon="�
 st.markdown("""
 <style>
 
-/* GLOBAL BACKGROUND */
 html, body, .stApp {
-    background: linear-gradient(135deg, #000000, #0F1117) !important;
-    color: white !important;
+    background: radial-gradient(circle at top, #0f172a, #000000);
+    color: #ffffff;
+    font-family: 'Segoe UI';
 }
 
-/* MAIN CONTAINER */
 .block-container {
-    background-color: #000000 !important;
+    padding-top: 1rem;
 }
 
-/* SIDEBAR */
 [data-testid="stSidebar"] {
-    background-color: #0A0A0A !important;
+    background: linear-gradient(180deg, #020617, #000000);
 }
 
-/* MULTISELECT FIX (THIS WAS YOUR ISSUE) */
 div[data-baseweb="select"] > div {
-    background-color: #111111 !important;
-    border-radius: 10px !important;
-    border: 1px solid #333 !important;
-}
-
-/* SELECTED TAGS */
-div[data-baseweb="tag"] {
-    background-color: #222 !important;
-    color: white !important;
-}
-
-/* INPUT TEXT */
-input {
-    color: white !important;
-}
-
-/* METRICS */
-[data-testid="stMetric"] {
-    background-color: #111111 !important;
+    background: rgba(255,255,255,0.05);
+    backdrop-filter: blur(10px);
     border-radius: 12px;
-    padding: 12px;
-    border: 1px solid #222222;
+    border: 1px solid rgba(255,255,255,0.1);
 }
 
-/* BUTTONS */
-.stButton button {
-    background-color: #1F1F1F !important;
-    color: white !important;
+div[data-baseweb="tag"] {
+    background: linear-gradient(135deg,#6366f1,#06b6d4);
+    color: white;
+    border-radius: 8px;
 }
 
-/* DATAFRAME */
-.stDataFrame {
-    background-color: #000000 !important;
+[data-testid="stMetric"] {
+    background: rgba(255,255,255,0.05);
+    backdrop-filter: blur(12px);
+    border-radius: 16px;
+    padding: 15px;
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0px 0px 20px rgba(99,102,241,0.2);
 }
 
-/* TABS */
-.stTabs [data-baseweb="tab"] {
-    color: white !important;
-}
-
-/* PLOTLY FIX */
-.js-plotly-plot, .plotly, .plot-container {
-    background-color: #000000 !important;
+.js-plotly-plot {
+    border-radius: 12px;
 }
 
 </style>
@@ -118,7 +95,7 @@ def cluster(df,X):
     k = np.argmax(scores)+2
     model = KMeans(n_clusters=k,n_init=10,random_state=42)
     df["Cluster"] = model.fit_predict(Xp)
-    names = ["High Growth","Stable","Aggregator Heavy","Premium","Low Performance"]
+    names = ["High Growth","Stable","Aggregator","Premium","Low"]
     df["ClusterLabel"] = df["Cluster"].map(lambda x: names[x%len(names)])
     p2 = PCA(n_components=2)
     coords = p2.fit_transform(X)
@@ -139,32 +116,54 @@ def gpi(df):
     df["Recommendation"] = df["GPI"].apply(lambda x: "🚀 Scale" if x>70 else "⚖️ Improve" if x>40 else "🛑 Fix")
     return df
 
-def app():
-    if not os.path.exists(DATA_FILE):
-        st.error("CSV missing")
-        return
+df = load()
+df,X = prep(df)
+df = cluster(df,X)
+df = gpi(df)
 
-    df = load()
-    df,X = prep(df)
-    df = cluster(df,X)
-    df = gpi(df)
+st.title("🚀 Restaurant Growth Intelligence System")
 
-    st.title("🚀 Growth Intelligence Dashboard")
+sub = st.sidebar.multiselect("Subregion", df["Subregion"].unique(), df["Subregion"].unique())
+cui = st.sidebar.multiselect("Cuisine", df["CuisineType"].unique(), df["CuisineType"].unique())
 
-    sub = st.sidebar.multiselect("Subregion", df["Subregion"].unique(), df["Subregion"].unique())
-    cui = st.sidebar.multiselect("Cuisine", df["CuisineType"].unique(), df["CuisineType"].unique())
+f = df[df["Subregion"].isin(sub) & df["CuisineType"].isin(cui)]
 
-    f = df[df["Subregion"].isin(sub) & df["CuisineType"].isin(cui)]
+c1,c2,c3,c4 = st.columns(4)
+c1.metric("Restaurants", len(f))
+c2.metric("Avg GPI", f"{f['GPI'].mean():.1f}")
+c3.metric("Margin", f"{f['NetMargin'].mean():.2%}")
+c4.metric("Top", (f["GPI"]>70).sum())
 
-    c1,c2,c3,c4 = st.columns(4)
-    c1.metric("Restaurants", len(f))
-    c2.metric("Avg GPI", f"{f['GPI'].mean():.1f}")
-    c3.metric("Margin", f"{f['NetMargin'].mean():.2%}")
-    c4.metric("Top Performers", (f["GPI"]>70).sum())
+tab1, tab2, tab3 = st.tabs(["Clusters","GPI Insights","Performance"])
 
-    fig = px.scatter(f,x="PC1",y="PC2",color="ClusterLabel",size="GPI",template="plotly_dark")
-    fig.update_layout(paper_bgcolor="#000000",plot_bgcolor="#000000",font=dict(color="white"))
+with tab1:
+    fig = px.scatter(f,x="PC1",y="PC2",color="ClusterLabel",size="GPI",hover_name="RestaurantName",template="plotly_dark")
+    fig.update_traces(marker=dict(line=dict(width=1,color='white')))
+    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)")
     st.plotly_chart(fig,use_container_width=True)
 
-if __name__ == "__main__":
-    app()
+with tab2:
+    fig1 = px.histogram(f,x="GPI",nbins=30,color_discrete_sequence=["#6366f1"],template="plotly_dark")
+    fig1.update_layout(paper_bgcolor="rgba(0,0,0,0)")
+    st.plotly_chart(fig1,use_container_width=True)
+
+    fig2 = px.box(f,x="ClusterLabel",y="GPI",color="ClusterLabel",template="plotly_dark")
+    fig2.update_layout(paper_bgcolor="rgba(0,0,0,0)")
+    st.plotly_chart(fig2,use_container_width=True)
+
+    fig3 = px.scatter(f,x="GPI",y="NetMargin",color="ClusterLabel",size="MonthlyOrders",template="plotly_dark")
+    fig3.update_layout(paper_bgcolor="rgba(0,0,0,0)")
+    st.plotly_chart(fig3,use_container_width=True)
+
+with tab3:
+    fig4 = px.bar(f.groupby("CuisineType")["GPI"].mean().reset_index(),x="CuisineType",y="GPI",color="CuisineType",template="plotly_dark")
+    fig4.update_layout(paper_bgcolor="rgba(0,0,0,0)")
+    st.plotly_chart(fig4,use_container_width=True)
+
+    fig5 = px.bar(f.groupby("Subregion")["GPI"].mean().reset_index(),x="Subregion",y="GPI",color="Subregion",template="plotly_dark")
+    fig5.update_layout(paper_bgcolor="rgba(0,0,0,0)")
+    st.plotly_chart(fig5,use_container_width=True)
+
+    fig6 = px.pie(f,names="Recommendation",template="plotly_dark")
+    fig6.update_layout(paper_bgcolor="rgba(0,0,0,0)")
+    st.plotly_chart(fig6,use_container_width=True)
