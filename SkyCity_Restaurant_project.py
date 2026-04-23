@@ -11,39 +11,77 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder, MinMaxScaler
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
-from sklearn.ensemble import RandomForestRegressor
 
 DATA_FILE = "SkyCity_Auckland_Restaurants___Bars.csv"
 
-st.set_page_config(layout="wide", page_title="AI Growth Intelligence", page_icon="🚀")
+st.set_page_config(layout="wide", page_title="Growth Intelligence", page_icon="🚀")
 
 st.markdown("""
 <style>
-.stApp {
-    background: radial-gradient(circle at top, #0A0F1C, #000000);
-    color: white;
+
+/* GLOBAL BACKGROUND */
+html, body, .stApp {
+    background: linear-gradient(135deg, #000000, #0F1117) !important;
+    color: white !important;
 }
+
+/* MAIN CONTAINER */
+.block-container {
+    background-color: #000000 !important;
+}
+
+/* SIDEBAR */
 [data-testid="stSidebar"] {
-    background: rgba(0,0,0,0.85);
-    backdrop-filter: blur(12px);
+    background-color: #0A0A0A !important;
 }
+
+/* MULTISELECT FIX (THIS WAS YOUR ISSUE) */
+div[data-baseweb="select"] > div {
+    background-color: #111111 !important;
+    border-radius: 10px !important;
+    border: 1px solid #333 !important;
+}
+
+/* SELECTED TAGS */
+div[data-baseweb="tag"] {
+    background-color: #222 !important;
+    color: white !important;
+}
+
+/* INPUT TEXT */
+input {
+    color: white !important;
+}
+
+/* METRICS */
 [data-testid="stMetric"] {
-    background: rgba(255,255,255,0.05);
-    border-radius: 15px;
-    padding: 15px;
-    border: 1px solid rgba(255,255,255,0.1);
-    box-shadow: 0 0 20px rgba(0,255,255,0.2);
+    background-color: #111111 !important;
+    border-radius: 12px;
+    padding: 12px;
+    border: 1px solid #222222;
 }
-.stTabs [data-baseweb="tab"] {
-    color: #00F5FF;
-    font-weight: 600;
-}
+
+/* BUTTONS */
 .stButton button {
-    background: linear-gradient(135deg, #00F5FF, #7A00FF);
-    color: white;
-    border-radius: 10px;
-    border: none;
+    background-color: #1F1F1F !important;
+    color: white !important;
 }
+
+/* DATAFRAME */
+.stDataFrame {
+    background-color: #000000 !important;
+}
+
+/* TABS */
+.stTabs [data-baseweb="tab"] {
+    color: white !important;
+}
+
+/* PLOTLY FIX */
+.js-plotly-plot, .plotly, .plot-container {
+    background-color: #000000 !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -60,29 +98,28 @@ def load():
     return df
 
 @st.cache_data
-def preprocess(df):
+def prep(df):
     for col in ["CuisineType","Segment","Subregion"]:
         df[col+"_enc"] = LabelEncoder().fit_transform(df[col])
     feats = ["GrowthFactor","AOV","MonthlyOrders","Scale","InStoreShare","UE_share","DD_share","SD_share","COGSRate","OPEXRate","CommissionRate","DeliveryRadiusKM","CostPressure","AggregatorDep","TotalNetProfit","RevenueQuality","CuisineType_enc","Segment_enc","Subregion_enc"]
     X = df[feats].fillna(0)
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-    return df, X_scaled, feats
+    X = StandardScaler().fit_transform(X)
+    return df, X
 
 @st.cache_data
-def clustering(df,X):
+def cluster(df,X):
     pca = PCA(n_components=5)
     Xp = pca.fit_transform(X)
-    sil = []
+    scores = []
     for k in range(2,7):
         km = KMeans(n_clusters=k,n_init=10,random_state=42)
         labels = km.fit_predict(Xp)
-        sil.append(silhouette_score(Xp,labels))
-    best_k = np.argmax(sil)+2
-    km = KMeans(n_clusters=best_k,n_init=10,random_state=42)
-    df["Cluster"] = km.fit_predict(Xp)
-    labels = ["High Growth","Stable","Aggregator Heavy","Premium","Low Performance"]
-    df["ClusterLabel"] = df["Cluster"].map(lambda x: labels[x%len(labels)])
+        scores.append(silhouette_score(Xp,labels))
+    k = np.argmax(scores)+2
+    model = KMeans(n_clusters=k,n_init=10,random_state=42)
+    df["Cluster"] = model.fit_predict(Xp)
+    names = ["High Growth","Stable","Aggregator Heavy","Premium","Low Performance"]
+    df["ClusterLabel"] = df["Cluster"].map(lambda x: names[x%len(names)])
     p2 = PCA(n_components=2)
     coords = p2.fit_transform(X)
     df["PC1"] = coords[:,0]
@@ -102,42 +139,17 @@ def gpi(df):
     df["Recommendation"] = df["GPI"].apply(lambda x: "🚀 Scale" if x>70 else "⚖️ Improve" if x>40 else "🛑 Fix")
     return df
 
-@st.cache_data
-def train_model(df, feats):
-    X = df[feats].fillna(0)
-    y = df["TotalRevenue"]
-    model = RandomForestRegressor(n_estimators=100, random_state=42)
-    model.fit(X,y)
-    df["PredictedRevenue"] = model.predict(X)
-    return df
-
-def insights(df):
-    out=[]
-    out.append(f"🚀 High Growth: {(df['GPI']>70).sum()}")
-    out.append(f"🛑 At Risk: {(df['GPI']<40).sum()}")
-    out.append(f"📊 Avg Margin: {df['NetMargin'].mean():.2%}")
-    if df["AggregatorDep"].mean()>0.6:
-        out.append("⚠️ Heavy reliance on aggregators")
-    return out
-
-def forecast(df):
-    df["NextOrders"] = df["MonthlyOrders"] * df["GrowthFactor"]
-    return df
-
 def app():
     if not os.path.exists(DATA_FILE):
         st.error("CSV missing")
         return
 
     df = load()
-    df,X,feats = preprocess(df)
-    df = clustering(df,X)
+    df,X = prep(df)
+    df = cluster(df,X)
     df = gpi(df)
-    df = forecast(df)
-    df = train_model(df,feats)
 
-    st.title("🚀 AI Growth Intelligence Platform")
-    st.caption("Clustering • Prediction • Strategy • Forecasting")
+    st.title("🚀 Growth Intelligence Dashboard")
 
     sub = st.sidebar.multiselect("Subregion", df["Subregion"].unique(), df["Subregion"].unique())
     cui = st.sidebar.multiselect("Cuisine", df["CuisineType"].unique(), df["CuisineType"].unique())
@@ -150,28 +162,9 @@ def app():
     c3.metric("Margin", f"{f['NetMargin'].mean():.2%}")
     c4.metric("Top Performers", (f["GPI"]>70).sum())
 
-    st.markdown("### 🤖 AI Insights")
-    for i in insights(f):
-        st.success(i)
-
-    tabs = st.tabs(["Clusters","GPI","Forecast","Revenue AI","Data"])
-
-    with tabs[0]:
-        st.plotly_chart(px.scatter(f,x="PC1",y="PC2",color="ClusterLabel",size="GPI",hover_name="RestaurantName",template="plotly_dark"),use_container_width=True)
-
-    with tabs[1]:
-        st.plotly_chart(px.histogram(f,x="GPI",color="ClusterLabel",template="plotly_dark"),use_container_width=True)
-        st.plotly_chart(px.box(f,x="ClusterLabel",y="GPI",template="plotly_dark"),use_container_width=True)
-
-    with tabs[2]:
-        st.plotly_chart(px.scatter(f,x="MonthlyOrders",y="NextOrders",color="ClusterLabel",template="plotly_dark"),use_container_width=True)
-
-    with tabs[3]:
-        st.plotly_chart(px.scatter(f,x="TotalRevenue",y="PredictedRevenue",color="ClusterLabel",template="plotly_dark",title="Actual vs Predicted Revenue"),use_container_width=True)
-
-    with tabs[4]:
-        st.dataframe(f.sort_values("GPI",ascending=False),use_container_width=True)
-        st.download_button("Download", f.to_csv(index=False), "data.csv")
+    fig = px.scatter(f,x="PC1",y="PC2",color="ClusterLabel",size="GPI",template="plotly_dark")
+    fig.update_layout(paper_bgcolor="#000000",plot_bgcolor="#000000",font=dict(color="white"))
+    st.plotly_chart(fig,use_container_width=True)
 
 if __name__ == "__main__":
     app()
