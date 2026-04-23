@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import plotly.express as px
-import plotly.graph_objects as go
+import plotly.io as pio
 
 from sklearn.preprocessing import StandardScaler, LabelEncoder, MinMaxScaler
 from sklearn.decomposition import PCA
@@ -15,7 +15,10 @@ from sklearn.metrics import silhouette_score
 
 DATA_FILE = "SkyCity_Auckland_Restaurants___Bars.csv"
 
-st.set_page_config(layout="wide", page_title="Growth Intelligence AI", page_icon="🚀")
+st.set_page_config(layout="wide", page_title="Growth Intelligence", page_icon="🚀")
+
+pio.templates.default = "plotly_dark"
+NEON = ["#00F5FF","#7C3AED","#F43F5E","#22C55E","#FACC15","#38BDF8"]
 
 st.markdown("""
 <style>
@@ -105,71 +108,70 @@ def gpi(df):
     df["Recommendation"] = df["GPI"].apply(lambda x: "🚀 Scale" if x>70 else "⚖️ Improve" if x>40 else "🛑 Fix")
     return df
 
-df = load()
-df,X = prep(df)
-df = cluster(df,X)
-df = gpi(df)
+def app():
+    if not os.path.exists(DATA_FILE):
+        st.error("CSV file not found")
+        return
 
-st.title("🚀 AI Growth Intelligence System")
+    df = load()
+    df,X = prep(df)
+    df = cluster(df,X)
+    df = gpi(df)
 
-sub = st.sidebar.multiselect("Subregion", df["Subregion"].unique(), df["Subregion"].unique())
-cui = st.sidebar.multiselect("Cuisine", df["CuisineType"].unique(), df["CuisineType"].unique())
+    st.title("🚀 Growth Intelligence Dashboard")
 
-f = df[df["Subregion"].isin(sub) & df["CuisineType"].isin(cui)]
+    sub = st.sidebar.multiselect("Subregion", df["Subregion"].unique(), df["Subregion"].unique())
+    cui = st.sidebar.multiselect("Cuisine", df["CuisineType"].unique(), df["CuisineType"].unique())
 
-c1,c2,c3,c4 = st.columns(4)
-c1.metric("Restaurants", len(f))
-c2.metric("Avg GPI", f"{f['GPI'].mean():.1f}")
-c3.metric("Avg Margin", f"{f['NetMargin'].mean():.2%}")
-c4.metric("Top Performers", (f["GPI"]>70).sum())
+    f = df[df["Subregion"].isin(sub) & df["CuisineType"].isin(cui)]
 
-trend = f.sort_values("GPI")
-fig_trend = px.line(trend, y="GPI", template="plotly_dark")
-fig_trend.update_layout(paper_bgcolor="rgba(0,0,0,0)")
-st.plotly_chart(fig_trend, use_container_width=True)
+    c1,c2,c3,c4 = st.columns(4)
+    c1.metric("Restaurants", len(f))
+    c2.metric("Avg GPI", f"{f['GPI'].mean():.1f}")
+    c3.metric("Avg Margin", f"{f['NetMargin'].mean():.2%}")
+    c4.metric("Top Performers", (f["GPI"]>70).sum())
 
-tab1, tab2, tab3, tab4 = st.tabs(["Clusters","Insights","Performance","AI Panel"])
+    trend = f.sort_values("GPI")
+    fig_trend = px.line(trend, y="GPI")
+    fig_trend.update_traces(line=dict(width=3,color="#00F5FF"))
+    fig_trend.update_layout(paper_bgcolor="#000000",plot_bgcolor="#000000")
+    st.plotly_chart(fig_trend, use_container_width=True)
 
-with tab1:
-    fig = px.scatter(f,x="PC1",y="PC2",color="ClusterLabel",size="GPI",hover_name="RestaurantName",template="plotly_dark")
-    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)")
-    st.plotly_chart(fig,use_container_width=True)
+    tab1, tab2, tab3 = st.tabs(["Clusters","Insights","Performance"])
 
-with tab2:
-    fig1 = px.histogram(f,x="GPI",nbins=30,color_discrete_sequence=["#6366f1"],template="plotly_dark")
-    fig1.update_layout(paper_bgcolor="rgba(0,0,0,0)")
-    st.plotly_chart(fig1,use_container_width=True)
+    with tab1:
+        fig = px.scatter(f,x="PC1",y="PC2",color="ClusterLabel",size="GPI",color_discrete_sequence=NEON)
+        fig.update_traces(marker=dict(line=dict(width=1,color="white")))
+        fig.update_layout(paper_bgcolor="#000000",plot_bgcolor="#000000")
+        st.plotly_chart(fig,use_container_width=True)
 
-    fig2 = px.box(f,x="ClusterLabel",y="GPI",color="ClusterLabel",template="plotly_dark")
-    fig2.update_layout(paper_bgcolor="rgba(0,0,0,0)")
-    st.plotly_chart(fig2,use_container_width=True)
+    with tab2:
+        fig1 = px.histogram(f,x="GPI",nbins=30,color_discrete_sequence=["#7C3AED"])
+        fig1.update_layout(paper_bgcolor="#000000",plot_bgcolor="#000000")
+        st.plotly_chart(fig1,use_container_width=True)
 
-    fig3 = px.scatter(f,x="GPI",y="NetMargin",color="ClusterLabel",size="MonthlyOrders",template="plotly_dark")
-    fig3.update_layout(paper_bgcolor="rgba(0,0,0,0)")
-    st.plotly_chart(fig3,use_container_width=True)
+        fig2 = px.box(f,x="ClusterLabel",y="GPI",color="ClusterLabel",color_discrete_sequence=NEON)
+        fig2.update_layout(paper_bgcolor="#000000",plot_bgcolor="#000000")
+        st.plotly_chart(fig2,use_container_width=True)
 
-with tab3:
-    fig4 = px.bar(f.groupby("CuisineType")["GPI"].mean().reset_index(),x="CuisineType",y="GPI",color="CuisineType",template="plotly_dark")
-    fig4.update_layout(paper_bgcolor="rgba(0,0,0,0)")
-    st.plotly_chart(fig4,use_container_width=True)
+        fig3 = px.scatter(f,x="GPI",y="NetMargin",color="ClusterLabel",size="MonthlyOrders",color_discrete_sequence=NEON)
+        fig3.update_layout(paper_bgcolor="#000000",plot_bgcolor="#000000")
+        st.plotly_chart(fig3,use_container_width=True)
 
-    fig5 = px.bar(f.groupby("Subregion")["GPI"].mean().reset_index(),x="Subregion",y="GPI",color="Subregion",template="plotly_dark")
-    fig5.update_layout(paper_bgcolor="rgba(0,0,0,0)")
-    st.plotly_chart(fig5,use_container_width=True)
+    with tab3:
+        d1 = f.groupby("CuisineType")["GPI"].mean().reset_index()
+        fig4 = px.bar(d1,x="CuisineType",y="GPI",color="GPI",color_continuous_scale="turbo")
+        fig4.update_layout(paper_bgcolor="#000000",plot_bgcolor="#000000")
+        st.plotly_chart(fig4,use_container_width=True)
 
-    fig6 = px.pie(f,names="Recommendation",template="plotly_dark")
-    fig6.update_layout(paper_bgcolor="rgba(0,0,0,0)")
-    st.plotly_chart(fig6,use_container_width=True)
+        d2 = f.groupby("Subregion")["GPI"].mean().reset_index()
+        fig5 = px.bar(d2,x="Subregion",y="GPI",color="GPI",color_continuous_scale="plasma")
+        fig5.update_layout(paper_bgcolor="#000000",plot_bgcolor="#000000")
+        st.plotly_chart(fig5,use_container_width=True)
 
-with tab4:
-    st.subheader("AI Insights")
-    high = f[f["GPI"]>70].shape[0]
-    low = f[f["GPI"]<40].shape[0]
-    msg = f"""
-    High potential restaurants: {high}
-    Low performing restaurants: {low}
-    Average margin: {f['NetMargin'].mean():.2%}
-    Key insight: Focus on high GPI clusters and reduce aggregator dependency
-    """
-    st.markdown(msg)
+        fig6 = px.pie(f,names="Recommendation",color_discrete_sequence=NEON,hole=0.5)
+        fig6.update_layout(paper_bgcolor="#000000")
+        st.plotly_chart(fig6,use_container_width=True)
 
+if __name__ == "__main__":
+    app()
